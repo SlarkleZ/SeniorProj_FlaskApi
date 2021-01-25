@@ -41,6 +41,7 @@ def loadModel(yamlPathName, h5PathName):
 
 def scrapeReview(movieCode):
     movieUrl = "https://www.imdb.com/title/" + movieCode + "/reviews?ref_=tt_ql_3"
+    scoreUrl = "https://www.imdb.com/title/" + movieCode + "/?ref_=tt_urv"
     try:
         html = urllib.request.urlopen(movieUrl).read().decode('utf8')
         html[:400]
@@ -65,7 +66,16 @@ def scrapeReview(movieCode):
         jsonTemp = json.loads(data.contents[0])
         review = jsonTemp['reviewBody']
         reviews.append(review)
-    return reviews
+    try:
+        htmlScore = urllib.request.urlopen(scoreUrl).read().decode('utf8')
+        htmlScore[:400]
+    except urllib.error.HTTPError as e:
+        return [];
+    rawScore = BeautifulSoup(htmlScore, 'html.parser')
+    scoreData = rawScore.find('script', type='application/ld+json')
+    scoreDataJson = json.loads(scoreData.contents[0])
+    movieScore = scoreDataJson['aggregateRating']['ratingValue']
+    return reviews,movieScore
 
 app = Flask(__name__)
 model = loadModel('./model/main_1_GRU/Summary', './model/main_1_GRU/Weights')
@@ -81,7 +91,7 @@ def test():
 def predictScore():
     if request.method == 'POST':
         movieCode = request.form["moviecode"]
-        reviews = scrapeReview(movieCode)
+        reviews,movieScore = scrapeReview(movieCode)
         reviewScore = []
         if not reviews:
             return jsonify(
@@ -106,41 +116,14 @@ def predictScore():
             result = model.predict(review_feat, verbose=0)
             reviewScore.append([review,result])
 
-        all_users = [{'review': each[0], 'score': json.dumps(each[1][0], cls=NumpyArrayEncoder)} for each in reviewScore]
+        all_users = [{'movieScore': movieScore,
+                      'allReview': [{
+                            'review': each[0],
+                            'score': json.dumps(each[1][0], cls=NumpyArrayEncoder)
+                    }for each in reviewScore]}]
         return jsonify(
             all_users
         )
-
-
-@app.route('/predict_classes', methods=['POST', 'DELETE'])
-def predictClass():
-    if request.method == 'POST':
-        review = request.form["review"]
-        # Lowercase && remove htmltag
-        lower_sentence = review.lower()
-        clean = re.compile('<.*?>')
-        sentence_no_tag = re.sub(clean, '', lower_sentence)
-        # Tokenization && clean word && lemma
-        cleaned = []
-        regextokenizer = RegexpTokenizer(r'\w+')
-        token_sentence = regextokenizer.tokenize(sentence_no_tag)
-        for w in token_sentence:
-            if not w in stopwords.words('English'):  # delete stopwords
-                cleaned.append(wordnet_lemmatizer.lemmatize(w, pos="v"))
-        review_cleaned = " ".join(cleaned)
-
-        review_cleaned_token = tokenizer.texts_to_sequences([review_cleaned])
-        review_feat = pad_sequences(review_cleaned_token, maxlen=853)
-        result = model.predict_classes(review_feat, verbose=0)
-
-        if result == 0:
-            return jsonify(
-                result='negative'
-            )
-        elif result == 1:
-            return jsonify(
-                result='positive'
-            )
 
 if __name__ == '__main__':
     app.run()
