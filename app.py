@@ -64,7 +64,7 @@ def scrapeReview(movieCode):
             loadmore.click()
             count += 1
             print(count)  # Count time scrape
-            if (count == 500): raise Exception("Reach!")
+            if (count == 50): raise Exception("Reach!")
         except Exception as e:
             print("Finish!")
             break
@@ -76,8 +76,8 @@ def scrapeReview(movieCode):
         title = item.select(".title")[0].text
         review = item.select(".text")[0].text
         print("Title: {}\n\nReview: {}\n\n".format(title, review))
-        reviews.append(review)
-    print(len(reviews))
+        reviews.append([title,review])
+    #print(len(reviews))
     scoreUrl = "https://www.imdb.com/title/" + movieCode + "/?ref_=tt_urv"
     try:
         htmlScore = urllib.request.urlopen(scoreUrl).read().decode('utf8')
@@ -89,44 +89,6 @@ def scrapeReview(movieCode):
     scoreDataJson = json.loads(scoreData.contents[0])
     movieScore = scoreDataJson['aggregateRating']['ratingValue']
     return reviews, movieScore
-
-    # movieUrl = "https://www.imdb.com/title/" + movieCode + "/reviews?ref_=tt_ql_3"
-    # scoreUrl = "https://www.imdb.com/title/" + movieCode + "/?ref_=tt_urv"
-    # try:
-    #     html = urllib.request.urlopen(movieUrl).read().decode('utf8')
-    #     html[:400]
-    # except urllib.error.HTTPError as e:
-    #     return [];
-    # raw = BeautifulSoup(html, 'html.parser')
-    # data = raw.findAll('div', {'id': 'main'})
-    # review_only = data[0].findAll(
-    #     'div', {'class': 'lister-item mode-detail imdb-user-review collapsable'})
-    # ids = []
-    # for div in review_only:
-    #     ID = div.get('data-review-id')
-    #     if ID is not None:
-    #         ids.append(ID)
-    # reviews = []
-    # for eachid in ids:
-    #     reviewUrl = "https://www.imdb.com/review/" + eachid + "/?ref_=tt_urv"
-    #     html = urllib.request.urlopen(reviewUrl).read().decode('utf8')
-    #     html[:400]
-    #     raw = BeautifulSoup(html, 'html.parser')
-    #     data = raw.find('script', type='application/ld+json')
-    #     jsonTemp = json.loads(data.contents[0])
-    #     review = jsonTemp['reviewBody']
-    #     reviews.append(review)
-    # try:
-    #     htmlScore = urllib.request.urlopen(scoreUrl).read().decode('utf8')
-    #     htmlScore[:400]
-    # except urllib.error.HTTPError as e:
-    #     return [];
-    # rawScore = BeautifulSoup(htmlScore, 'html.parser')
-    # scoreData = rawScore.find('script', type='application/ld+json')
-    # scoreDataJson = json.loads(scoreData.contents[0])
-    # movieScore = scoreDataJson['aggregateRating']['ratingValue']
-    # return reviews,movieScore
-
 
 app = Flask(__name__)
 model = loadModel('./model/main_1_GRU/Summary', './model/main_1_GRU/Weights')
@@ -154,7 +116,9 @@ def predictScore():
             )
         # Lowercase && remove htmltag
         for review in reviews:
-            lower_sentence = review.lower()
+            title = review[0]
+            review_data = review[1]
+            lower_sentence = review_data.lower()
             clean = re.compile('<.*?>')
             sentence_no_tag = re.sub(clean, '', lower_sentence)
             # Tokenization && clean word && Lemmatization
@@ -173,15 +137,16 @@ def predictScore():
                 positive += 1
             elif (result < 0.5):
                 negative += 1
-            reviewScore.append([review, result])
+            reviewScore.append([title, review_data, result])
 
         all_users = [{'reviewCount': str(len(reviewScore)),
                       'positiveReview': str(positive),
                       'negativeReview': str(negative),
                       'movieScore': movieScore,
                       'allReview': [{
-                          'review': each[0],
-                          'score': json.dumps(each[1][0], cls=NumpyArrayEncoder)
+                          'title': each[0],
+                          'review': each[1],
+                          'score': json.dumps(each[2][0], cls=NumpyArrayEncoder)
                       } for each in reviewScore]}]
         return jsonify(
             all_users
