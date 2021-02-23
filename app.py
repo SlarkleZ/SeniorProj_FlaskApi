@@ -3,11 +3,9 @@ from flask import jsonify
 from flask import Flask
 from flask import request
 from json import JSONEncoder
-from flask import Response
 
 # Web Scrape Library
 from bs4 import BeautifulSoup
-from selenium import webdriver
 import urllib
 import requests
 from webdriver_manager.microsoft import EdgeChromiumDriverManager
@@ -24,7 +22,6 @@ from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 import nltk
 import numpy
-from selenium.common.exceptions import ElementNotInteractableException
 
 nltk.download('wordnet')
 wordnet_lemmatizer = WordNetLemmatizer()
@@ -57,22 +54,22 @@ def loadModel(yamlPathName, h5PathName):
     return loaded_model
 
 
-def scrapeReviewIMDB(movieCode):
+def scrapeReviewIMDB(movieCode, isAllReview):
     url = 'http://www.imdb.com/title/' + movieCode + '/reviews?ref_=tt_urv'
     driver = Edge(EdgeChromiumDriverManager().install(), options=options)
     driver.get(url)
-
-    count = 0
-    while True:
-        try:
-            loadmore = driver.find_element_by_class_name("load-more-data")
-            loadmore.click()
-            count += 1
-            print(count)  # Count time scrape
-            if (count == 50): raise Exception("Reach!")
-        except Exception as e:
-            print("Finish!")
-            break
+    if isAllReview:
+        count = 0
+        while True:
+            try:
+                loadmore = driver.find_element_by_class_name("load-more-data")
+                loadmore.click()
+                count += 1
+                print(count)  # Count time scrape
+                if count == 100: raise Exception("Reach!")
+            except Exception as e:
+                print("Finish!")
+                break
 
     soup = BeautifulSoup(driver.page_source, 'html.parser')
 
@@ -80,15 +77,14 @@ def scrapeReviewIMDB(movieCode):
     for item in soup.select(".review-container"):
         title = item.select(".title")[0].text
         review = item.select(".text")[0].text
-        #print("Title: {}\n\nReview: {}\n\n".format(title, review))
+        # print("Title: {}\n\nReview: {}\n\n".format(title, review))
         reviews.append([title, review])
-    # print(len(reviews))
+        # print(len(reviews))
     scoreUrl = "https://www.imdb.com/title/" + movieCode + "/?ref_=tt_urv"
     try:
         htmlScore = urllib.request.urlopen(scoreUrl).read().decode('utf8')
-        htmlScore[:400]
-    except urllib.error.HTTPError as e:
-        return [];
+    except urllib.error.HTTPError:
+        return []
     rawScore = BeautifulSoup(htmlScore, 'html.parser')
     scoreData = rawScore.find('script', type='application/ld+json')
     scoreDataJson = json.loads(scoreData.contents[0])
@@ -124,10 +120,10 @@ def test():
 
 
 @app.route('/predict_review_imdb', methods=['POST', 'DELETE'])
-def predictScore():
+def predictScoreIMDB():
     if request.method == 'POST':
         movieCode = request.form["moviecode"]
-        reviews, movieScore = scrapeReviewIMDB(movieCode)
+        reviews, movieScore = scrapeReviewIMDB(movieCode, False)
         positive = 0
         negative = 0
         reviewScore = []
@@ -184,6 +180,139 @@ def predictScore():
 def predictScoreRotten():
     if request.method == 'POST':
         movieCode = request.form["moviecode"]
+        resOMDB = requests.post('http://www.omdbapi.com/?apikey=' + OMDBkey + '&tomatoes=true&i=' + movieCode)
+        dataOMDB = resOMDB.json()
+
+        tomatoURL = dataOMDB['tomatoURL']
+        if not tomatoURL.endswith('/'):
+            tomatoURL = tomatoURL + '/'
+        tomatoURL = tomatoURL + 'reviews?type=user'
+        movieScore = dataOMDB['Ratings']
+        tomatoScore = ''
+        for eachScore in movieScore:
+            if eachScore['Source'] == 'Rotten Tomatoes':
+                tomatoScore = eachScore['Value']
+
+        reviews = []
+        print(tomatoURL)
+        driver = Edge(EdgeChromiumDriverManager().install(), options=options)
+        driver.get(tomatoURL)
+        # html = urllib.request.urlopen(tomatoURL).read().decode('utf8')
+        # html[:400]
+
+        soup = BeautifulSoup(driver.page_source, 'html.parser')
+        # print(data)
+        for item in soup.select(".audience-reviews__item"):
+            review = item.select(".audience-reviews__review")[0].text
+            reviews.append(review)
+        if not reviews:
+            return jsonify(
+                result='no review'
+            )
+        positive = 0
+        negative = 0
+        reviewScore = []
+        for review in reviews:
+            review_data = review
+            lower_sentence = review_data.lower()
+            clean = re.compile('<.*?>')
+            sentence_no_tag = re.sub(clean, '', lower_sentence)
+            # Tokenization && clean word && Lemmatization
+            cleaned = []
+            regextokenizer = RegexpTokenizer(r'\w+')
+            token_sentence = regextokenizer.tokenize(sentence_no_tag)
+            for w in token_sentence:
+                if not w in stopwords.words('English'):  # Delete stopwords
+                    cleaned.append(wordnet_lemmatizer.lemmatize(w, pos="v"))
+            review_cleaned = " ".join(cleaned)
+            review_cleaned_token = tokenizer_rotten.texts_to_sequences([review_cleaned])
+            review_feat = pad_sequences(review_cleaned_token, maxlen=28)
+            # Declare which model we use
+            graph_var = g2
+            session_var = session2
+            with graph_var.as_default():
+                with session_var.as_default():
+                    result = model2.predict(review_feat, verbose=0)
+            ###########
+            if (result > 0.5):
+                positive += 1
+            elif (result < 0.5):
+                negative += 1
+            reviewScore.append([review_data, result])
+
+        all_users = [{'reviewCount': str(len(reviewScore)),
+                      'positiveReview': str(positive),
+                      'negativeReview': str(negative),
+                      'rottenScore': tomatoScore,
+                      'allReview': [{
+                          'review': each[0],
+                          'score': json.dumps(each[1][0], cls=NumpyArrayEncoder)
+                      } for each in reviewScore]}]
+        return jsonify(
+            all_users
+        )
+
+
+@app.route('/predict_allreview_imdb', methods=['POST', 'DELETE'])
+def predictScoreAllReviewIMDB():
+    movieCode = request.form["moviecode"]
+    reviews, movieScore = scrapeReviewIMDB(movieCode, True)
+    positive = 0
+    negative = 0
+    reviewScore = []
+    if not reviews:
+        return jsonify(
+            result='no review'
+        )
+    # Lowercase && remove htmltag
+    for review in reviews:
+        title = review[0]
+        review_data = review[1]
+        lower_sentence = review_data.lower()
+        clean = re.compile('<.*?>')
+        sentence_no_tag = re.sub(clean, '', lower_sentence)
+        # Tokenization && clean word && Lemmatization
+        cleaned = []
+        regextokenizer = RegexpTokenizer(r'\w+')
+        token_sentence = regextokenizer.tokenize(sentence_no_tag)
+        for w in token_sentence:
+            if not w in stopwords.words('English'):  # Delete stopwords
+                cleaned.append(wordnet_lemmatizer.lemmatize(w, pos="v"))
+        review_cleaned = " ".join(cleaned)
+
+        review_cleaned_token = tokenizer_imdb.texts_to_sequences([review_cleaned])
+        review_feat = pad_sequences(review_cleaned_token, maxlen=853)
+        # Declare which model we use
+        graph_var = g1
+        session_var = session1
+        with graph_var.as_default():
+            with session_var.as_default():
+                result = model.predict(review_feat, verbose=0)
+        ###########
+        if (result > 0.5):
+            positive += 1
+        elif (result < 0.5):
+            negative += 1
+        reviewScore.append([title, review_data, result])
+
+    all_users = [{'reviewCount': str(len(reviewScore)),
+                  'positiveReview': str(positive),
+                  'negativeReview': str(negative),
+                  'imdbScore': movieScore,
+                  'allReview': [{
+                      'title': each[0],
+                      'review': each[1],
+                      'score': json.dumps(each[2][0], cls=NumpyArrayEncoder)
+                  } for each in reviewScore]}]
+    return jsonify(
+        all_users
+    )
+
+
+@app.route('/predict_allreview_rotten', methods=['POST', 'DELETE'])
+def predictScoreAllReviewRotten():
+    if request.method == 'POST':
+        movieCode = request.form["moviecode"]
         resOMDB = requests.post('http://www.omdbapi.com/?apikey=6be019fc&tomatoes=true&i=' + movieCode)
         dataOMDB = resOMDB.json()
 
@@ -199,14 +328,17 @@ def predictScoreRotten():
 
         reviews = []
         print(tomatoURL)
-        html = urllib.request.urlopen(tomatoURL).read().decode('utf8')
-        html[:400]
+        driver = Edge(EdgeChromiumDriverManager().install(), options=options)
+        driver.get(tomatoURL)
 
-        raw = BeautifulSoup(html, 'html.parser')
-        data = raw.findAll('p', {'class': 'audience-reviews__review js-review-text clamp clamp-8 js-clamp'})
-        # print(data)
-        for eachdata in data:
-            reviews.append(eachdata.text)
+        # Page to scrape here
+        for i in range(6):
+            soup = BeautifulSoup(driver.page_source, 'html.parser')
+            for item in soup.select(".audience-reviews__item"):
+                review = item.select(".audience-reviews__review")[0].text
+                reviews.append(review)
+            next = driver.find_element_by_class_name("js-prev-next-paging-next")
+            next.click()
         if not reviews:
             return jsonify(
                 result='no review'
