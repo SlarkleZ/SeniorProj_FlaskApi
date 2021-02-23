@@ -187,16 +187,18 @@ def predictScoreRotten():
         resOMDB = requests.post('http://www.omdbapi.com/?apikey=6be019fc&tomatoes=true&i=' + movieCode)
         dataOMDB = resOMDB.json()
 
-        tomatoURL = dataOMDB['tomatoURL'] + 'reviews?type=user'
+        tomatoURL = dataOMDB['tomatoURL']
+        if not tomatoURL.endswith('/'):
+            tomatoURL = tomatoURL + '/'
+        tomatoURL = tomatoURL + 'reviews?type=user'
         movieScore = dataOMDB['Ratings']
         tomatoScore = ''
         for eachScore in movieScore:
             if eachScore['Source'] == 'Rotten Tomatoes':
                 tomatoScore = eachScore['Value']
-        #print(tomatoScore)
 
         reviews = []
-        # main_url = "https://www.rottentomatoes.com/m/the_invisible_man_2020/reviews?type=user"
+        print(tomatoURL)
         html = urllib.request.urlopen(tomatoURL).read().decode('utf8')
         html[:400]
 
@@ -204,8 +206,6 @@ def predictScoreRotten():
         data = raw.findAll('p', {'class': 'audience-reviews__review js-review-text clamp clamp-8 js-clamp'})
         # print(data)
         for eachdata in data:
-            #print(eachdata.text)
-            #print("***************************************************")
             reviews.append(eachdata.text)
         if not reviews:
             return jsonify(
