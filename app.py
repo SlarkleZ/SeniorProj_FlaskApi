@@ -205,7 +205,7 @@ def predictScoreRotten():
         for item in soup.select(".audience-reviews__item"):
             review = item.select(".audience-reviews__review")[0].text
             reviews.append(review)
-            
+
         if not reviews:
             return jsonify(
                 result='no review'
