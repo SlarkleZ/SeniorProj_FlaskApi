@@ -17,7 +17,7 @@ import time
 chrome_options = webdriver.ChromeOptions()
 chrome_options.add_argument('--no-sandbox')
 chrome_options.add_argument('--window-size=1420,1080')
-#chrome_options.add_argument('--headless')
+chrome_options.add_argument('--headless')
 chrome_options.add_argument('--disable-gpu')
 chrome_options.add_argument('--disable-dev-shm-usage')
 
@@ -43,6 +43,7 @@ from keras_preprocessing.text import tokenizer_from_json
 # Init Key
 OMDBkey = '6be019fc'
 
+
 class NumpyArrayEncoder(JSONEncoder):  # Use for DecoderArrayToList
     def default(self, obj):
         if isinstance(obj, numpy.ndarray):
@@ -65,16 +66,15 @@ def scrapeReviewIMDB(movieCode, isAllReview):
     driver.get(url)
     if isAllReview:
         count = 0
-        for i in range(5):
+        while True:
             print(count)  # Count time scrape
             if count == 1:
                 break
             loadmore = driver.find_element_by_class_name("load-more-data")
-            time.sleep(2)
+            time.sleep(5)
             loadmore.click()
-            time.sleep(2)
+            time.sleep(5)
             count += 1
-
 
     soup = BeautifulSoup(driver.page_source, 'html.parser')
     reviews = []
@@ -117,10 +117,9 @@ with open('model/imdb_GRU/tokenizer.json') as f:
     data_imdb = json.load(f)
     tokenizer_imdb = tokenizer_from_json(data_imdb)
 
-with open('model/imdb_GRU/tokenizer.json') as f2:
+with open('model/rotten_GRU/tokenizer.json') as f2:
     data_rotten = json.load(f2)
     tokenizer_rotten = tokenizer_from_json(data_rotten)
-
 
 @app.route('/', methods=['GET'])
 def test():
@@ -182,7 +181,6 @@ def predictScoreIMDB():
         return jsonify(
             all_users
         )
-
 
 @app.route('/predict_review_rotten', methods=['POST', 'DELETE'])
 def predictScoreRotten():
