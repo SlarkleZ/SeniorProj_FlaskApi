@@ -11,12 +11,13 @@ import urllib
 import requests
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium import webdriver
+import time
 
 # Setting for Chrome
 chrome_options = webdriver.ChromeOptions()
 chrome_options.add_argument('--no-sandbox')
 chrome_options.add_argument('--window-size=1420,1080')
-chrome_options.add_argument('--headless')
+#chrome_options.add_argument('--headless')
 chrome_options.add_argument('--disable-gpu')
 chrome_options.add_argument('--disable-dev-shm-usage')
 
@@ -64,26 +65,29 @@ def scrapeReviewIMDB(movieCode, isAllReview):
     driver.get(url)
     if isAllReview:
         count = 0
-        while True:
-            try:
-                loadmore = driver.find_element_by_class_name("load-more-data")
-                loadmore.click()
-                count += 1
-                print(count)  # Count time scrape
-                if count == 100: raise Exception("Reach!")
-            except Exception as e:
-                print("Finish!")
+        for i in range(5):
+            print(count)  # Count time scrape
+            if count == 1:
                 break
+            loadmore = driver.find_element_by_class_name("load-more-data")
+            time.sleep(2)
+            loadmore.click()
+            time.sleep(2)
+            count += 1
+
 
     soup = BeautifulSoup(driver.page_source, 'html.parser')
-
     reviews = []
     for item in soup.select(".review-container"):
         title = item.select(".title")[0].text
         review = item.select(".text")[0].text
         # print("Title: {}\n\nReview: {}\n\n".format(title, review))
         reviews.append([title, review])
+        if not isAllReview:
+            if len(reviews) == 10:
+                break
         # print(len(reviews))
+    driver.close()
     scoreUrl = "https://www.imdb.com/title/" + movieCode + "/?ref_=tt_urv"
     try:
         htmlScore = urllib.request.urlopen(scoreUrl).read().decode('utf8')
@@ -210,6 +214,7 @@ def predictScoreRotten():
             review = item.select(".audience-reviews__review")[0].text
             reviews.append(review)
 
+        driver.close()
         if not reviews:
             return jsonify(
                 result='no review'
@@ -338,13 +343,16 @@ def predictScoreAllReviewRotten():
         driver.get(tomatoURL)
 
         # Page to scrape here
-        for i in range(6):
+        for i in range(5):
             soup = BeautifulSoup(driver.page_source, 'html.parser')
             for item in soup.select(".audience-reviews__item"):
                 review = item.select(".audience-reviews__review")[0].text
                 reviews.append(review)
             next = driver.find_element_by_class_name("js-prev-next-paging-next")
+            time.sleep(1)
             next.click()
+            time.sleep(1)
+        driver.close()
         if not reviews:
             return jsonify(
                 result='no review'
