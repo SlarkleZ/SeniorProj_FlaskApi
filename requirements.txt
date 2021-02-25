@@ -5,3 +5,4 @@ tensorflow~=2.1.0
 tensorflow-gpu==2.1.0
 flask~=1.1.2
 beautifulsoup4~=4.9.1
+selenium~=3.141.0

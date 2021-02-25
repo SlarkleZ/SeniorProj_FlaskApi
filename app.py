@@ -1,4 +1,5 @@
 # Flask
+import os
 from flask import jsonify
 from flask import Flask
 from flask import request
@@ -8,13 +9,16 @@ from json import JSONEncoder
 from bs4 import BeautifulSoup
 import urllib
 import requests
-from webdriver_manager.microsoft import EdgeChromiumDriverManager
-from msedge.selenium_tools import Edge, EdgeOptions
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium import webdriver
 
-# Setting for Edge Chromium
-options = EdgeOptions()
-options.use_chromium = True
-options.add_argument("headless")
+# Setting for Chrome
+chrome_options = webdriver.ChromeOptions()
+chrome_options.add_argument('--no-sandbox')
+chrome_options.add_argument('--window-size=1420,1080')
+chrome_options.add_argument('--headless')
+chrome_options.add_argument('--disable-gpu')
+chrome_options.add_argument('--disable-dev-shm-usage')
 
 # Model Preprocessing Library
 from nltk.tokenize import RegexpTokenizer
@@ -24,6 +28,7 @@ import nltk
 import numpy
 
 nltk.download('wordnet')
+nltk.download('stopwords')
 wordnet_lemmatizer = WordNetLemmatizer()
 
 # Model Library
@@ -36,7 +41,6 @@ from keras_preprocessing.text import tokenizer_from_json
 
 # Init Key
 OMDBkey = '6be019fc'
-
 
 class NumpyArrayEncoder(JSONEncoder):  # Use for DecoderArrayToList
     def default(self, obj):
@@ -56,7 +60,7 @@ def loadModel(yamlPathName, h5PathName):
 
 def scrapeReviewIMDB(movieCode, isAllReview):
     url = 'http://www.imdb.com/title/' + movieCode + '/reviews?ref_=tt_urv'
-    driver = Edge(EdgeChromiumDriverManager().install(), options=options)
+    driver = webdriver.Chrome(ChromeDriverManager().install(), chrome_options=chrome_options)
     driver.get(url)
     if isAllReview:
         count = 0
@@ -143,7 +147,7 @@ def predictScoreIMDB():
             regextokenizer = RegexpTokenizer(r'\w+')
             token_sentence = regextokenizer.tokenize(sentence_no_tag)
             for w in token_sentence:
-                if not w in stopwords.words('English'):  # Delete stopwords
+                if not w in stopwords.words('english'):  # Delete stopwords
                     cleaned.append(wordnet_lemmatizer.lemmatize(w, pos="v"))
             review_cleaned = " ".join(cleaned)
 
@@ -195,7 +199,7 @@ def predictScoreRotten():
 
         reviews = []
         print(tomatoURL)
-        driver = Edge(EdgeChromiumDriverManager().install(), options=options)
+        driver = webdriver.Chrome(ChromeDriverManager().install(), chrome_options=chrome_options)
         driver.get(tomatoURL)
         # html = urllib.request.urlopen(tomatoURL).read().decode('utf8')
         # html[:400]
@@ -224,7 +228,7 @@ def predictScoreRotten():
             regextokenizer = RegexpTokenizer(r'\w+')
             token_sentence = regextokenizer.tokenize(sentence_no_tag)
             for w in token_sentence:
-                if not w in stopwords.words('English'):  # Delete stopwords
+                if not w in stopwords.words('english'):  # Delete stopwords
                     cleaned.append(wordnet_lemmatizer.lemmatize(w, pos="v"))
             review_cleaned = " ".join(cleaned)
             review_cleaned_token = tokenizer_rotten.texts_to_sequences([review_cleaned])
@@ -278,7 +282,7 @@ def predictScoreAllReviewIMDB():
         regextokenizer = RegexpTokenizer(r'\w+')
         token_sentence = regextokenizer.tokenize(sentence_no_tag)
         for w in token_sentence:
-            if not w in stopwords.words('English'):  # Delete stopwords
+            if not w in stopwords.words('english'):  # Delete stopwords
                 cleaned.append(wordnet_lemmatizer.lemmatize(w, pos="v"))
         review_cleaned = " ".join(cleaned)
 
@@ -330,7 +334,7 @@ def predictScoreAllReviewRotten():
 
         reviews = []
         print(tomatoURL)
-        driver = Edge(EdgeChromiumDriverManager().install(), options=options)
+        driver = webdriver.Chrome(ChromeDriverManager().install(), chrome_options=chrome_options)
         driver.get(tomatoURL)
 
         # Page to scrape here
@@ -358,7 +362,7 @@ def predictScoreAllReviewRotten():
             regextokenizer = RegexpTokenizer(r'\w+')
             token_sentence = regextokenizer.tokenize(sentence_no_tag)
             for w in token_sentence:
-                if not w in stopwords.words('English'):  # Delete stopwords
+                if not w in stopwords.words('english'):  # Delete stopwords
                     cleaned.append(wordnet_lemmatizer.lemmatize(w, pos="v"))
             review_cleaned = " ".join(cleaned)
             review_cleaned_token = tokenizer_rotten.texts_to_sequences([review_cleaned])
@@ -390,4 +394,4 @@ def predictScoreAllReviewRotten():
 
 
 if __name__ == '__main__':
-    app.run()
+    app.run(debug=True, host='0.0.0.0', port=os.getenv('PORT'))
