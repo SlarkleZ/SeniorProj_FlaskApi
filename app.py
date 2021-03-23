@@ -322,6 +322,7 @@ def predictScoreAllReviewIMDB():
 def predictScoreAllReviewRotten():
     if request.method == 'POST':
         movieCode = request.form["moviecode"]
+        numPage = int(request.form["numclick"])
         resOMDB = requests.post('http://www.omdbapi.com/?apikey=6be019fc&tomatoes=true&i=' + movieCode)
         dataOMDB = resOMDB.json()
 
@@ -341,15 +342,15 @@ def predictScoreAllReviewRotten():
         driver.get(tomatoURL)
 
         # Page to scrape here
-        for i in range(5):
+        for i in range(numPage):
             soup = BeautifulSoup(driver.page_source, 'html.parser')
-            for item in soup.select(".audience-reviews__item"):
-                review = item.select(".audience-reviews__review")[0].text
-                reviews.append(review)
             next = driver.find_element_by_class_name("js-prev-next-paging-next")
             time.sleep(1)
             next.click()
             time.sleep(1)
+        for item in soup.select(".audience-reviews__item"):
+            review = item.select(".audience-reviews__review")[0].text
+            reviews.append(review)
         driver.close()
         if not reviews:
             return jsonify(
