@@ -7,5 +7,4 @@ Route for allReviewPage
 - /predict_allreview_imdb for imdb allreview movie page
 - /predict_allreview_rotten for rotten allreview movie page
 "moviecode" for choose movie
-"numclick" for select page to scrape in rotten
 
