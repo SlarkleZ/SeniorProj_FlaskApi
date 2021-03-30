@@ -28,6 +28,8 @@ from nltk.stem import WordNetLemmatizer
 import nltk
 import numpy
 
+numpy.set_printoptions(suppress=True)
+
 nltk.download('wordnet')
 nltk.download('stopwords')
 wordnet_lemmatizer = WordNetLemmatizer()
@@ -162,10 +164,12 @@ def predictScoreIMDB():
             with graph_var.as_default():
                 with session_var.as_default():
                     result = model.predict(review_feat, verbose=0)
+                    result = str(f"{result[0][0]:8f}")
+                    print(result)
             ###########
-            if (result > 0.5):
+            if (float(result) > 0.5):
                 positive += 1
-            elif (result < 0.5):
+            elif (float(result) < 0.5):
                 negative += 1
             reviewScore.append([title, review_data, result])
 
@@ -176,7 +180,7 @@ def predictScoreIMDB():
                       'allReview': [{
                           'title': each[0],
                           'review': each[1],
-                          'score': json.dumps(each[2][0], cls=NumpyArrayEncoder)
+                          'score': each[2]
                       } for each in reviewScore]}]
         return jsonify(
             all_users
@@ -242,10 +246,12 @@ def predictScoreRotten():
             with graph_var.as_default():
                 with session_var.as_default():
                     result = model2.predict(review_feat, verbose=0)
+                    result = str(f"{result[0][0]:8f}")
+                    print(result)
             ###########
-            if (result > 0.5):
+            if (float(result) > 0.5):
                 positive += 1
-            elif (result < 0.5):
+            elif (float(result) < 0.5):
                 negative += 1
             reviewScore.append([review_data, result])
 
@@ -255,7 +261,7 @@ def predictScoreRotten():
                       'rottenScore': tomatoScore,
                       'allReview': [{
                           'review': each[0],
-                          'score': json.dumps(each[1][0], cls=NumpyArrayEncoder)
+                          'score': each[1]
                       } for each in reviewScore]}]
         return jsonify(
             all_users
@@ -297,10 +303,12 @@ def predictScoreAllReviewIMDB():
         with graph_var.as_default():
             with session_var.as_default():
                 result = model.predict(review_feat, verbose=0)
+                result = str(f"{result[0][0]:8f}")
+                print(result)
         ###########
-        if (result > 0.5):
+        if (float(result) > 0.5):
             positive += 1
-        elif (result < 0.5):
+        elif (float(result) < 0.5):
             negative += 1
         reviewScore.append([title, review_data, result])
 
@@ -311,7 +319,7 @@ def predictScoreAllReviewIMDB():
                   'allReview': [{
                       'title': each[0],
                       'review': each[1],
-                      'score': json.dumps(each[2][0], cls=NumpyArrayEncoder)
+                      'score': each[2]
                   } for each in reviewScore]}]
     return jsonify(
         all_users
@@ -380,10 +388,12 @@ def predictScoreAllReviewRotten():
             with graph_var.as_default():
                 with session_var.as_default():
                     result = model2.predict(review_feat, verbose=0)
+                    result = str(f"{result[0][0]:8f}")
+                    print(result)
             ###########
-            if (result > 0.5):
+            if (float(result) > 0.5):
                 positive += 1
-            elif (result < 0.5):
+            elif (float(result) < 0.5):
                 negative += 1
             reviewScore.append([review_data, result])
 
@@ -393,7 +403,7 @@ def predictScoreAllReviewRotten():
                       'rottenScore': tomatoScore,
                       'allReview': [{
                           'review': each[0],
-                          'score': json.dumps(each[1][0], cls=NumpyArrayEncoder)
+                          'score': each[1]
                       } for each in reviewScore]}]
         return jsonify(
             all_users
